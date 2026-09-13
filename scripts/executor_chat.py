@@ -210,9 +210,8 @@ class Chat:
         mark = "✓" if data["ok"] else "✗"
         self.out(f"{_C_DIM}── {mark} {tid} {data['status']} · "
                  f"verify_ok={data['verify_ok']} ──{RST}")
-        line = marker_line("summary", display_text(data["summary"], 200))
-        if line:
-            self.out(line)
+        if data.get("summary"):
+            self.out(f"{_C_ACC}┃ answer{_RST} {display_text(data['summary'], 600)}")
         if getattr(self, "_tail", None): self._tail.set()
         busy_none(self)
         report("idle")

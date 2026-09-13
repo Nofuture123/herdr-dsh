@@ -146,9 +146,8 @@ class Reception:
         mark = "✓" if data["ok"] else "✗"
         self.out(f"{_C_DIM}── {mark} {data['task_id']} {data['status']} · "
                  f"verify_ok={data['verify_ok']} ({data.get('_dur', '?')}s) ──{RST}")
-        line = marker_line("summary", display_text(data["summary"], 200))
-        if line:
-            self.out(line)
+        if data.get("summary"):
+            self.out(f"{_C_ACC}┃ answer{_RST} {display_text(data['summary'], 600)}")
         if getattr(self, "_tail", None):
             self._tail.set()
         remember_session(data.get("native_session_id"))
