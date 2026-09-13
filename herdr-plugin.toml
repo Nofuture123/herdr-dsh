@@ -1,0 +1,38 @@
+id = "dsh"
+name = "DeepSeek Harness"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "DeepSeek Harness (dsh) in Herdr: TUI panes + a delegation bridge (any CLI agent -> dsh headless executor)"
+platforms = ["macos", "linux"]
+
+# Runs once on `herdr plugin install`: prereq checks (node + resolvable dsh).
+[[build]]
+command = ["sh", "scripts/ensure-dsh.sh"]
+
+[[panes]]
+id = "executor"
+title = "dsh-bridge"
+placement = "tab"
+command = ["sh", "scripts/executor-pane.sh"]
+
+[[panes]]
+id = "tui"
+title = "DSH"
+placement = "split"
+command = ["sh", "bin/launch-dsh.sh"]
+
+[[actions]]
+id = "open-here"
+title = "Open DSH here"
+contexts = ["pane", "workspace", "tab"]
+command = ["sh", "bin/open-dsh-here.sh"]
+
+[[actions]]
+id = "doctor"
+title = "DSH: doctor"
+command = ["sh", "scripts/ensure-dsh.sh"]
+
+[[actions]]
+id = "status"
+title = "DSH: task list"
+command = ["python3", "bin/dshcli.py", "list", "--machine"]

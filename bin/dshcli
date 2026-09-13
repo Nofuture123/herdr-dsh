@@ -1,0 +1,2 @@
+#!/bin/sh
+exec "${PY3:-python3}" "$(dirname "$0")/dshcli.py" "$@"
