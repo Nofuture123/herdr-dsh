@@ -1,2 +1,5 @@
 #!/bin/sh
-exec "${PY3:-python3}" "$(dirname "$0")/dshcli.py" "$@"
+# resolve symlinks so `dshcli` works from any PATH dir
+SELF="$0"
+while [ -L "$SELF" ]; do SELF="$(readlink "$SELF")"; case "$SELF" in /*) ;; *) SELF="$(dirname "$0")/$SELF";; esac; done
+exec "${PY3:-python3}" "$(dirname "$SELF")/dshcli.py" "$@"

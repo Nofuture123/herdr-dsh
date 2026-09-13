@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""zcodecli chat — ONE ZCode session per Herdr agent pane. PURE transport CLI.
+"""dshcli chat — ONE ZCode session per Herdr agent pane. PURE transport CLI.
 
   <text>   -> a turn in this pane's session (owner-authorized full access)
   {json}   -> strict spec, fail-closed; edit/yolo requires verify
@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from executor_common import (broker, build_kernel, report, remember_session,
                              emit, collect, persist, sanitize, stream_native_output,
                              receipt_ok, receipt_err, attach_summary_full, WARN, marker_line,
-                             display_text, _C_DIM)
+                             display_text, _C_DIM, _C_ACC)
 
 def _c(n): return f"\033[{n}m"
 DIM, BOLD, GREEN, RED, YEL, CYA, RST = _c(2), _c(1), _c(32), _c(31), _c(33), _c(36), _c(0)
@@ -186,7 +186,7 @@ class Chat:
             if cancelled_by_us:
                 self.out("cancel_requested — not yet confirmed stopped; busy held until terminal")
             else:
-                self.out(f"[zcodecli:wait_timeout] {rid} {tid} (task continues; busy held)")
+                self.out(f"[dshcli:wait_timeout] {rid} {tid} (task continues; busy held)")
             self.background_wait(tid, rid)
             return
         if cancelled_by_us and snap.get("status") == "cancelled":
@@ -211,7 +211,7 @@ class Chat:
         self.out(f"{_C_DIM}── {mark} {tid} {data['status']} · "
                  f"verify_ok={data['verify_ok']} ──{RST}")
         if data.get("summary"):
-            self.out(f"{_C_ACC}┃ answer{_RST} {display_text(data['summary'], 600)}")
+            self.out(f"{_C_ACC}┃ answer{RST} {display_text(data['summary'], 600)}")
         if getattr(self, "_tail", None): self._tail.set()
         busy_none(self)
         report("idle")

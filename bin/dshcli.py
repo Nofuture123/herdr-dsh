@@ -176,6 +176,50 @@ def cmd_list(a):
     print(f"{len(tasks)} task(s)", file=sys.stderr)
     return 0
 
+def cmd_open_session(a):
+    """Best-effort: open the dsh session recorded around a task's completion.
+
+    DshKernel does not capture dsh session ids, so this resolves by workspace
+    bucket + file mtime closest to the task's completion time."""
+    tid = a.task_id
+    if not broker.TASK_RE.match(tid or ""):
+        print("usage: dshcli open-session <task_id>", file=sys.stderr); return 2
+    rf = broker.result_path(tid)
+    if not os.path.exists(rf):
+        print(f"no evidence file for {tid}", file=sys.stderr); return 1
+    full = json.load(open(rf))
+    ws = full.get("workspace") or ""
+    bucket = os.path.expanduser(
+        "~/.dsh/sessions/" + re.sub(r"[^A-Za-z0-9]", "-", ws))
+    want = 0.0
+    try:
+        want = os.path.getmtime(rf)
+    except OSError:
+        pass
+    best, best_dt = None, 1e18
+    if os.path.isdir(bucket):
+        for f in os.listdir(bucket):
+            fp = os.path.join(bucket, f)
+            if not f.startswith("session-"):
+                continue
+            try:
+                dt = abs(os.path.getmtime(fp) - want)
+            except OSError:
+                continue
+            if dt < best_dt:
+                best, best_dt = (f, fp), dt
+    if not best:
+        print(f"no dsh session found under {bucket}", file=sys.stderr); return 1
+    sess = best[0].removeprefix("session-").removesuffix(".json")
+    print(f"note: matched {best[0]} (Δ{int(best_dt)}s)", file=sys.stderr)
+    cmd = (os.environ.get("DSH_BIN") or "dsh").split() + \
+          ["--profile", "tui", "--resume", sess]
+    if a.print:
+        print(" ".join(cmd)); return 0
+    print(f"opening {sess} …", file=sys.stderr)
+    os.execvp(cmd[0], cmd)
+
+
 def cmd_cancel(a):
     tid = a.task_id
     if not tid or not broker.TASK_RE.match(tid):
@@ -200,6 +244,7 @@ s.add_argument("--timeout", type=int, default=300000); s.set_defaults(fn=cmd_res
 s = sub.add_parser("read"); s.add_argument("--lines", type=int, default=40); s.set_defaults(fn=cmd_read)
 s = sub.add_parser("list"); s.set_defaults(fn=cmd_list)
 s = sub.add_parser("cancel"); s.add_argument("task_id"); s.set_defaults(fn=cmd_cancel)
+s = sub.add_parser("open-session"); s.add_argument("task_id"); s.add_argument("--print", action="store_true"); s.set_defaults(fn=cmd_open_session)
 s = sub.add_parser("chat"); s.add_argument("--workspace", default=None); s.set_defaults(fn=cmd_chat)
 a = p.parse_args()
 if not getattr(a, "cmd", None):

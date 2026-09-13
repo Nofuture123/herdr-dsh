@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from executor_common import (broker, build_kernel, report, remember_session,
                              emit, collect, persist, sanitize, stream_native_output,
                              receipt_ok, receipt_err, attach_summary_full, WARN, marker_line,
-                             display_text, _C_DIM)
+                             display_text, _C_DIM, _C_ACC)
 
 def _c(n): return f"\033[{n}m"
 DIM, BOLD, GREEN, RED, YEL, CYA, RST = _c(2), _c(1), _c(32), _c(31), _c(33), _c(36), _c(0)
@@ -147,7 +147,7 @@ class Reception:
         self.out(f"{_C_DIM}── {mark} {data['task_id']} {data['status']} · "
                  f"verify_ok={data['verify_ok']} ({data.get('_dur', '?')}s) ──{RST}")
         if data.get("summary"):
-            self.out(f"{_C_ACC}┃ answer{_RST} {display_text(data['summary'], 600)}")
+            self.out(f"{_C_ACC}┃ answer{RST} {display_text(data['summary'], 600)}")
         if getattr(self, "_tail", None):
             self._tail.set()
         remember_session(data.get("native_session_id"))
@@ -171,7 +171,7 @@ class Reception:
         tid = self.submit(spec, rid)
         snap, dur = self.poll(tid, time.time() + spec["timeout"])
         if snap.get("status") in ("submitted", "running", None):
-            self.out(f"[zcodecli:wait_timeout] {rid} {tid} (task continues; busy held)")
+            self.out(f"[dshcli:wait_timeout] {rid} {tid} (task continues; busy held)")
             return self.background_wait(tid, spec, rid)
         return self.finish(snap, spec, rid, dur)
 
