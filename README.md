@@ -8,7 +8,7 @@ receipt/evidence disk protocol as herdr-zcode-plugin.
 ## Install
 
 ```bash
-herdr plugin install Nofuture123/herdr-dsh-plugin
+herdr plugin install Nofuture123/herdr-dsh
 ```
 
 Build-time prereqs: Node.js >= 20, python3, a resolvable `dsh`
