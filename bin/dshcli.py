@@ -84,6 +84,7 @@ def cmd_send(a):
         print(f"workspace not a dir: {ws}", file=sys.stderr); return 2
     text = a.text.strip()
     nonce = secrets.token_hex(4)
+    flags = any(getattr(a, k, None) for k in ("verify", "mode", "policy", "scope", "key", "timeout"))
     if text.startswith("{"):
         try:
             obj = json.loads(text)
@@ -95,7 +96,29 @@ def cmd_send(a):
         except json.JSONDecodeError:
             pass
     elif not a.raw and not text.startswith("/"):
-        text = json.dumps({"goal": a.text, "workspace": ws, "nonce": nonce}, ensure_ascii=False)
+        obj = {"goal": a.text, "workspace": ws, "nonce": nonce}
+        if a.verify: obj["verify"] = a.verify
+        if a.mode: obj["mode"] = a.mode
+        if a.policy: obj["policy"] = a.policy
+        if a.scope: obj["scope"] = [x.strip() for x in a.scope.split(",") if x.strip()]
+        if a.key: obj["idempotency_key"] = a.key
+        if a.timeout: obj["timeout"] = a.timeout
+        text = json.dumps(obj, ensure_ascii=False)
+    elif flags and not a.raw:
+        try:
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                if a.verify: obj["verify"] = a.verify
+                if a.mode: obj["mode"] = a.mode
+                if a.policy: obj["policy"] = a.policy
+                if a.scope: obj["scope"] = [x.strip() for x in a.scope.split(",") if x.strip()]
+                if a.key: obj["idempotency_key"] = a.key
+                if a.timeout: obj["timeout"] = a.timeout
+                nonce = obj.get("nonce") or nonce
+                obj["nonce"] = nonce
+                text = json.dumps(obj, ensure_ascii=False)
+        except json.JSONDecodeError:
+            pass
     rc, stdout, stderr = herdr(["pane", "run", pid, text])
     if rc != 0 and "pane_not_found" in (stderr or ""):
         pid = need_pane(None)   # self-heal: targeted pane was closed
@@ -238,7 +261,14 @@ p.add_argument("--pane", default=None)
 sub = p.add_subparsers(dest="cmd")
 s = sub.add_parser("open"); s.add_argument("--placement", default="tab"); s.set_defaults(fn=cmd_open)
 s = sub.add_parser("send"); s.add_argument("text"); s.add_argument("--workspace", default=None)
-s.add_argument("--raw", action="store_true"); s.set_defaults(fn=cmd_send)
+s.add_argument("--raw", action="store_true")
+s.add_argument("--verify", default=None, help="verify command (required for edit/yolo)")
+s.add_argument("--mode", default=None, choices=["plan", "build", "edit", "yolo"])
+s.add_argument("--policy", default=None, choices=["allow", "deny"])
+s.add_argument("--scope", default=None, help="comma-separated relative paths")
+s.add_argument("--key", default=None, help="idempotency_key")
+s.add_argument("--timeout", type=int, default=None)
+s.set_defaults(fn=cmd_send)
 s = sub.add_parser("result"); s.add_argument("--machine", action="store_true")
 s.add_argument("--timeout", type=int, default=300000); s.set_defaults(fn=cmd_result)
 s = sub.add_parser("read"); s.add_argument("--lines", type=int, default=40); s.set_defaults(fn=cmd_read)
