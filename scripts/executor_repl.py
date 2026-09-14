@@ -35,6 +35,8 @@ class Reception:
         self.out = out
         self.pane_id = pane_id or os.environ.get("HERDR_PANE_ID")
         self.busy = None            # task_id
+        self.pending_steer = None
+        self.last_finished_tid = None
         self.active_request = None  # request_id
         self.current_nonce = None
         self.last = None            # last request record (spec + task_id)
@@ -109,6 +111,9 @@ class Reception:
                             self.do_cancel(ctid)   # tri-state honest outcome; keep polling
                         else:
                             self.sig_error(f"busy: {tid} running; cannot cancel {ctid} from here")
+                    elif l.startswith("/steer "):
+                        self.pending_steer = l[len("/steer "):].strip()
+                        self.do_cancel(tid)
                     elif l:
                         incoming = None
                         if l.startswith("{"):
@@ -163,6 +168,17 @@ class Reception:
                 return   # do NOT fabricate a verdict; busy stays, /cancel still works
             self.finish(snap, spec, rid, 0.0)
         threading.Thread(target=waiter, daemon=True).start()
+
+    def _launch_pending_steer(self):
+        if getattr(self, "pending_steer", None) and self.last_finished_tid:
+            text, self.pending_steer = self.pending_steer, None
+            spec = dict(getattr(self, "active_spec", {}) or {})
+            spec["goal"] = text
+            spec.pop("idempotency_key", None)
+            rid = broker.new_request_id()
+            broker.save_request(rid, spec)
+            self.out(f"{YEL}↻ steering → {sanitize(text, 60)}{RST}")
+            self.run_task(spec, rid)
 
     def run_task(self, spec, rid):
         self.active_spec, self.active_request = spec, rid
@@ -280,6 +296,14 @@ class Reception:
             report("idle")
         return st
 
+    def do_steer(self, text):
+        """Redirect the running task: cancel now; the new instruction runs
+        after the task reaches terminal (stateless per run)."""
+        if not self.busy:
+            self.out("nothing running"); return
+        self.pending_steer = text
+        self.do_cancel(self.busy)
+
     def handle(self, line):
         line = line.strip()
         if not line: return
@@ -299,6 +323,7 @@ class Reception:
             elif cmd == "/inspect":
                 self.out(sanitize(str(self.kernel.inspect(rest.strip(), "summary")), 1500))
             elif cmd == "/continue": self.do_continue(rest)
+            elif cmd == "/steer": self.do_steer(rest)
             else: self.sig_error(f"unknown command {cmd}")
             return
         if self.busy:
@@ -308,7 +333,8 @@ class Reception:
     def process(self, line):
         """Main-loop body: honors /cancel mid-run, otherwise dispatches."""
         line = line.strip()
-        if self.busy and not (line == "/cancel" or line.startswith("/cancel ")):
+        if self.busy and not (line == "/cancel" or line.startswith("/cancel ")
+                          or line.startswith("/steer ")):
             if line:
                 incoming = None
                 if line.startswith("{"):
@@ -321,6 +347,12 @@ class Reception:
                 self.do_cancel()
             elif line.startswith("/cancel "):
                 self.do_cancel(line.split()[-1])
+            return
+        if line.startswith("/steer "):
+            if self.busy:
+                self.do_steer(line[len("/steer "):].strip())
+            else:
+                self.out("nothing running")
             return
         try:
             self.handle(line)

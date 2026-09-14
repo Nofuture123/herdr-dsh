@@ -27,6 +27,7 @@ class Chat:
         self.ws = ws or WS
         self.busy = None; self.root = None; self.q = queue.Queue()
         self.current_nonce = None; self.current_rid = None
+        self.pending_steer = None; self.last_finished_tid = None
 
     def sig(self, kind, *fields):
         line = marker_line(kind, " ".join(str(f) for f in fields))
@@ -116,9 +117,19 @@ class Chat:
             if line:
                 self.out(line)
             if getattr(self, "_tail", None): self._tail.set()
+            self._launch_pending_steer_turn(tid)
             if self.busy == tid: self.busy = None
             report("idle")
         threading.Thread(target=waiter, daemon=True).start()
+
+    def _launch_pending_steer_turn(self, finished_tid):
+        if getattr(self, "pending_steer", None) and finished_tid:
+            text, self.pending_steer = self.pending_steer, None
+            spec = dict(getattr(self, "active_spec", {}) or {})
+            spec["goal"] = text
+            spec["session_ref"] = finished_tid
+            spec.pop("idempotency_key", None)
+            self.run_turn(json.dumps(spec, ensure_ascii=False))
 
     def run_turn(self, line):
         rid = broker.new_request_id()
@@ -169,6 +180,11 @@ class Chat:
                             self.out(f"{YEL}cancelling {tid} …{RST}")
                             self.kernel.cancel(tid)
                             cancelled_by_us = True
+                    elif l.startswith("/steer "):
+                        self.pending_steer = l[len("/steer "):].strip()
+                        self.out(f"{YEL}cancelling {tid} for steering …{RST}")
+                        self.kernel.cancel(tid)
+                        cancelled_by_us = True
                     elif l:
                         incoming = None
                         if l.startswith("{"):
@@ -198,6 +214,7 @@ class Chat:
         attach_summary_full(data, tid)
         self._release_if_never_ran(spec, data)
         if not self.root and tid: self.root = tid
+        self.last_finished_tid = tid
         remember_session(data.get("native_session_id"))
         persist({**snap, "request_id": rid, "status": data["status"],
                  "ok": data["ok"], "verify_ok": data["verify_ok"],
